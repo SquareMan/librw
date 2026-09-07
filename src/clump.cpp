@@ -34,7 +34,7 @@ Clump::create(void)
 	}
 	numAllocated++;
 	clump->object.init(Clump::ID, 0);
-	clump->atomics.init();
+	clump->atomicList.init();
 	clump->lights.init();
 	clump->cameras.init();
 
@@ -52,7 +52,7 @@ Clump::clone(void)
 	Clump *clump = Clump::create();
 	Frame *root = this->getFrame()->cloneAndLink();
 	clump->setFrame(root);
-	FORLIST(lnk, this->atomics){
+	FORLIST(lnk, this->atomicList){
 		Atomic *a = Atomic::fromClump(lnk);
 		Atomic *atomic = a->clone();
 		atomic->setFrame(a->getFrame()->root);
@@ -73,7 +73,7 @@ Clump::destroy(void)
 {
 	Frame *f;
 	s_plglist.destruct(this);
-	FORLIST(lnk, this->atomics){
+	FORLIST(lnk, this->atomicList){
 		Atomic *a = Atomic::fromClump(lnk);
 		this->removeAtomic(a);
 		a->destroy();
@@ -100,14 +100,14 @@ Clump::addAtomic(Atomic *a)
 {
 	assert(a->clump == nil);
 	a->clump = this;
-	this->atomics.append(&a->inClump);
+	this->atomicList.append(&a->inClumpLink);
 }
 
 void
 Clump::removeAtomic(Atomic *a)
 {
 	assert(a->clump == this);
-	a->inClump.remove();
+	a->inClumpLink.remove();
 	a->clump = nil;
 }
 
@@ -305,16 +305,16 @@ Clump::streamWrite(Stream *stream)
 
 	if(rw::version >= 0x30400){
 		size = 12+4;
-		FORLIST(lnk, this->atomics)
+		FORLIST(lnk, this->atomicList)
 			size += 12 + Atomic::fromClump(lnk)->geometry->streamGetSize();
 		writeChunkHeader(stream, ID_GEOMETRYLIST, size);
 		writeChunkHeader(stream, ID_STRUCT, 4);
 		stream->writeI32(numAtomics);	// same as numGeometries
-		FORLIST(lnk, this->atomics)
+		FORLIST(lnk, this->atomicList)
 			Atomic::fromClump(lnk)->geometry->streamWrite(stream);
 	}
 
-	FORLIST(lnk, this->atomics)
+	FORLIST(lnk, this->atomicList)
 		Atomic::fromClump(lnk)->streamWriteClump(stream, &frmlst);
 
 	FORLIST(lnk, this->lights){
@@ -358,12 +358,12 @@ Clump::streamGetSize(void)
 	if(rw::version >= 0x30400){
 		// Geometry list
 		size += 12 + 12 + 4;
-		FORLIST(lnk, this->atomics)
+		FORLIST(lnk, this->atomicList)
 			size += 12 + Atomic::fromClump(lnk)->geometry->streamGetSize();
 	}
 
 	// Atomics
-	FORLIST(lnk, this->atomics)
+	FORLIST(lnk, this->atomicList)
 		size += 12 + Atomic::fromClump(lnk)->streamGetSize();
 
 	// Lights
@@ -382,7 +382,7 @@ void
 Clump::render(void)
 {
 	Atomic *a;
-	FORLIST(lnk, this->atomics){
+	FORLIST(lnk, this->atomicList){
 		a = Atomic::fromClump(lnk);
 		if(a->object.object.flags & Atomic::RENDER)
 			a->render();
@@ -427,9 +427,9 @@ Atomic::create(void)
 	atomic->setFrame(nil);
 	atomic->object.object.privateFlags |= WORLDBOUNDDIRTY;
 	atomic->clump = nil;
-	atomic->inClump.init();
+	atomic->inClumpLink.init();
 	atomic->pipeline = nil;
-	atomic->renderCB = Atomic::defaultRenderCB;
+	atomic->renderCallBack = Atomic::defaultRenderCB;
 	atomic->object.object.flags = Atomic::COLLISIONTEST | Atomic::RENDER;
 	// TODO: interpolator
 
@@ -452,7 +452,7 @@ Atomic::clone()
 	atomic->object.object.privateFlags |= WORLDBOUNDDIRTY;
 	if(this->geometry)
 		atomic->setGeometry(this->geometry, 0);
-	atomic->renderCB = this->renderCB;
+	atomic->renderCallBack = this->renderCallBack;
 	atomic->pipeline = this->pipeline;
 
 	// World extension doesn't add to world
@@ -485,7 +485,7 @@ Atomic::setGeometry(Geometry *geo, uint32 flags)
 	if(flags & SAMEBOUNDINGSPHERE)
 		return;
 	if(geo){
-		this->boundingSphere = geo->morphTargets[0].boundingSphere;
+		this->boundingSphere = geo->morphTarget[0].boundingSphere;
 		if(this->getFrame())	// TODO: && getWorld???
 			this->getFrame()->updateObjects();
 	}
@@ -568,7 +568,7 @@ Atomic::streamWriteClump(Stream *stream, FrameList_ *frmlst)
 		this->geometry->streamWrite(stream);
 	}else{
 		buf[1] = 0;
-		FORLIST(lnk, c->atomics){
+		FORLIST(lnk, c->atomicList){
 			if(Atomic::fromClump(lnk)->geometry == this->geometry)
 				goto foundgeo;
 			buf[1]++;
@@ -621,10 +621,11 @@ Atomic::uninstance(void)
 	this->geometry->flags &= ~Geometry::NATIVE;
 }
 
-void
+Atomic*
 Atomic::defaultRenderCB(Atomic *atomic)
 {
 	atomic->getPipeline()->render(atomic);
+	return atomic;
 }
 
 // Atomic Rights plugin

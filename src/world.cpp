@@ -28,7 +28,7 @@ World::create(BBox *bbox)
 	}
 	numAllocated++;
 	world->object.init(World::ID, 0);
-	world->localLights.init();
+	world->directionalLightList.init();
 	world->globalLights.init();
 	world->clumps.init();
 	s_plglist.construct(world);
@@ -51,7 +51,7 @@ World::addLight(Light *light)
 	if(light->getType() < Light::POINT){
 		this->globalLights.append(&light->inWorld);
 	}else{
-		this->localLights.append(&light->inWorld);
+		this->directionalLightList.append(&light->inWorld);
 		if(light->getFrame())
 			light->getFrame()->updateObjects();
 	}
@@ -103,7 +103,7 @@ World::addClump(Clump *clump)
 	assert(clump->world == nil);
 	clump->world = this;
 	this->clumps.add(&clump->inWorld);
-	FORLIST(lnk, clump->atomics)
+	FORLIST(lnk, clump->atomicList)
 		this->addAtomic(Atomic::fromClump(lnk));
 	FORLIST(lnk, clump->lights)
 		this->addLight(Light::fromClump(lnk));
@@ -111,7 +111,7 @@ World::addClump(Clump *clump)
 		this->addCamera(Camera::fromClump(lnk));
 
 	if(clump->getFrame()){
-		clump->getFrame()->matrix.optimize();
+		clump->getFrame()->modelling.optimize();
 		clump->getFrame()->updateObjects();
 	}
 }
@@ -121,7 +121,7 @@ World::removeClump(Clump *clump)
 {
 	assert(clump->world == this);
 	clump->inWorld.remove();
-	FORLIST(lnk, clump->atomics)
+	FORLIST(lnk, clump->atomicList)
 		this->removeAtomic(Atomic::fromClump(lnk));
 	FORLIST(lnk, clump->lights)
 		this->removeLight(Light::fromClump(lnk));
@@ -179,7 +179,7 @@ World::enumerateLights(Atomic *atomic, WorldLights *lightData)
 		return;
 
 	// TODO: for this we would use an atomic's world sectors, but we don't have those yet
-	FORLIST(lnk, this->localLights){
+	FORLIST(lnk, this->directionalLightList){
 		if(lightData->numLocals >= maxLocals)
 			return;
 
@@ -226,7 +226,7 @@ World::enumerateLights(WorldLights *lightData)
 		}
 	}
 
-	FORLIST(lnk, this->localLights){
+	FORLIST(lnk, this->directionalLightList){
 		if(lightData->numLocals >= maxLocals)
 			return;
 

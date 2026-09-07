@@ -42,7 +42,7 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 	geo->numTriangles = numTris;
 	geo->numVertices = numVerts;
 
-	geo->colors = nil;
+	geo->preLitLum = nil;
 	for(int32 i = 0; i < 8; i++)
 		geo->texCoords[i] = nil;
 	geo->triangles = nil;
@@ -59,7 +59,7 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 		geo->triangles = (Triangle*)data;
 		data += geo->numTriangles*sizeof(Triangle);
 		if(geo->flags & PRELIT && geo->numVertices){
-			geo->colors = (RGBA*)data;
+			geo->preLitLum = (RGBA*)data;
 			data += geo->numVertices*sizeof(RGBA);
 		}
 		if(geo->numVertices)
@@ -73,12 +73,12 @@ Geometry::create(int32 numVerts, int32 numTris, uint32 flags)
 			geo->triangles[i].matId = 0xFFFF;
 	}
 	geo->numMorphTargets = 0;
-	geo->morphTargets = nil;
+	geo->morphTarget = nil;
 	geo->addMorphTargets(1);
 
 	geo->matList.init();
 	geo->lockedSinceInst = 0;
-	geo->meshHeader = nil;
+	geo->mesh = nil;
 	geo->instData = nil;
 	geo->refCount = 1;
 
@@ -95,9 +95,9 @@ Geometry::destroy(void)
 		// Also frees colors and tex coords
 		rwFree(this->triangles);
 		// Also frees their data
-		rwFree(this->morphTargets);
+		rwFree(this->morphTarget);
 		// Also frees indices
-		rwFree(this->meshHeader);
+		rwFree(this->mesh);
 		this->matList.deinit();
 		rwFree(this);
 		numAllocated--;
@@ -109,15 +109,15 @@ Geometry::lock(int32 lockFlags)
 {
 	lockedSinceInst |= lockFlags;
 	if(lockFlags & LOCKPOLYGONS){
-		rwFree(this->meshHeader);
-		this->meshHeader = nil;
+		rwFree(this->mesh);
+		this->mesh = nil;
 	}
 }
 
 void
 Geometry::unlock(void)
 {
-	if(this->meshHeader == nil)
+	if(this->mesh == nil)
 		this->buildMeshes();
 		
 }
@@ -154,27 +154,27 @@ Geometry::streamRead(Stream *stream)
 
 	if(!(geo->flags & NATIVE)){
 		if(geo->flags & PRELIT)
-			stream->read8(geo->colors, 4*geo->numVertices);
+			stream->read8(geo->preLitLum, 4*geo->numVertices);
 		for(int32 i = 0; i < geo->numTexCoordSets; i++)
 			stream->read32(geo->texCoords[i],
 				    2*geo->numVertices*4);
 		for(int32 i = 0; i < geo->numTriangles; i++){
 			uint32 tribuf[2];
 			stream->read32(tribuf, 8);
-			geo->triangles[i].v[0]  = tribuf[0] >> 16;
-			geo->triangles[i].v[1]  = tribuf[0];
-			geo->triangles[i].v[2]  = tribuf[1] >> 16;
+			geo->triangles[i].vertIndex[0]  = tribuf[0] >> 16;
+			geo->triangles[i].vertIndex[1]  = tribuf[0];
+			geo->triangles[i].vertIndex[2]  = tribuf[1] >> 16;
 			geo->triangles[i].matId = tribuf[1];
 		}
 	}
 
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
-		MorphTarget *m = &geo->morphTargets[i];
+		MorphTarget *m = &geo->morphTarget[i];
 		stream->read32(&m->boundingSphere, 4*4);
 		int32 hasVertices = stream->readI32();
 		int32 hasNormals = stream->readI32();
 		if(hasVertices)
-			stream->read32(m->vertices, 3*geo->numVertices*4);
+			stream->read32(m->verts, 3*geo->numVertices*4);
 		if(hasNormals)
 			stream->read32(m->normals, 3*geo->numVertices*4);
 	}
@@ -214,10 +214,10 @@ geoStructSize(Geometry *geo)
 		size += 4*geo->numTriangles*2;
 	}
 	for(int32 i = 0; i < geo->numMorphTargets; i++){
-		MorphTarget *m = &geo->morphTargets[i];
+		MorphTarget *m = &geo->morphTarget[i];
 		size += 4*4 + 2*4; // bounding sphere and bools
 		if(!(geo->flags & Geometry::NATIVE)){
-			if(m->vertices)
+			if(m->verts)
 				size += 3*geo->numVertices*4;
 			if(m->normals)
 				size += 3*geo->numVertices*4;
@@ -245,28 +245,28 @@ Geometry::streamWrite(Stream *stream)
 
 	if(!(this->flags & NATIVE)){
 		if(this->flags & PRELIT)
-			stream->write8(this->colors, 4*this->numVertices);
+			stream->write8(this->preLitLum, 4*this->numVertices);
 		for(int32 i = 0; i < this->numTexCoordSets; i++)
 			stream->write32(this->texCoords[i],
 				    2*this->numVertices*4);
 		for(int32 i = 0; i < this->numTriangles; i++){
 			uint32 tribuf[2];
-			tribuf[0] = this->triangles[i].v[0] << 16 |
-			            this->triangles[i].v[1];
-			tribuf[1] = this->triangles[i].v[2] << 16 |
+			tribuf[0] = this->triangles[i].vertIndex[0] << 16 |
+			            this->triangles[i].vertIndex[1];
+			tribuf[1] = this->triangles[i].vertIndex[2] << 16 |
 			            this->triangles[i].matId;
 			stream->write32(tribuf, 8);
 		}
 	}
 
 	for(int32 i = 0; i < this->numMorphTargets; i++){
-		MorphTarget *m = &this->morphTargets[i];
+		MorphTarget *m = &this->morphTarget[i];
 		stream->write32(&m->boundingSphere, 4*4);
 		if(!(this->flags & NATIVE)){
-			stream->writeI32(m->vertices != nil);
+			stream->writeI32(m->verts != nil);
 			stream->writeI32(m->normals != nil);
-			if(m->vertices)
-				stream->write32(m->vertices,
+			if(m->verts)
+				stream->write32(m->verts,
 				             3*this->numVertices*4);
 			if(m->normals)
 				stream->write32(m->normals,
@@ -311,8 +311,8 @@ Geometry::addMorphTargets(int32 n)
 	// Memory layout: MorphTarget[n]; (vertices and normals)[n]
 	MorphTarget *mts;
 	if(this->numMorphTargets){
-		mts = (MorphTarget*)rwResize(this->morphTargets, n*sz, MEMDUR_EVENT | ID_GEOMETRY);
-		this->morphTargets = mts;
+		mts = (MorphTarget*)rwResize(this->morphTarget, n*sz, MEMDUR_EVENT | ID_GEOMETRY);
+		this->morphTarget = mts;
 		// Since we now have more morph targets than before, move the vertex data up
 		uint8 *src = (uint8*)mts + sz*this->numMorphTargets;
 		uint8 *dst = (uint8*)mts + sz*n;
@@ -321,14 +321,14 @@ Geometry::addMorphTargets(int32 n)
 			*--dst = *--src;
 	}else{
 		mts = (MorphTarget*)rwNew(n*sz, MEMDUR_EVENT | ID_GEOMETRY);
-		this->morphTargets = mts;
+		this->morphTarget = mts;
 	}
 
 	// Set up everything and initialize the bounding sphere for new morph targets
 	V3d *data  = (V3d*)&mts[n];
 	for(int32 i = 0; i < n; i++){
 		mts->parent = this;
-		mts->vertices = nil;
+		mts->verts = nil;
 		mts->normals = nil;
 		if(i >= this->numMorphTargets){
 			mts->boundingSphere.center.x = 0.0f;
@@ -337,7 +337,7 @@ Geometry::addMorphTargets(int32 n)
 			mts->boundingSphere.radius = 0.0f;
 		}
 		if(!(this->flags & NATIVE) && this->numVertices){
-			mts->vertices = data;
+			mts->verts = data;
 			data += this->numVertices;
 			if(this->flags & NORMALS){
 				mts->normals = data;
@@ -353,7 +353,7 @@ void
 Geometry::calculateBoundingSphere(void)
 {
 	for(int32 i = 0; i < this->numMorphTargets; i++){
-		MorphTarget *m = &this->morphTargets[i];
+		MorphTarget *m = &this->morphTarget[i];
 		m->boundingSphere = m->calculateBoundingSphere();
 	}
 }
@@ -387,7 +387,7 @@ Geometry::allocateData(void)
 	for(int32 i = 0; i < this->numTriangles; i++)
 		this->triangles[i].matId = 0xFFFF;
 	if(this->flags & PRELIT){
-		this->colors = (RGBA*)data;
+		this->preLitLum = (RGBA*)data;
 		data += this->numVertices*sizeof(RGBA);
 	}
 	for(int32 i = 0; i < this->numTexCoordSets; i++){
@@ -401,16 +401,16 @@ Geometry::allocateData(void)
 	if(this->flags & NORMALS)
 		sz += this->numVertices*sizeof(V3d);
 
-	MorphTarget *mt = (MorphTarget*)rwResize(this->morphTargets,
+	MorphTarget *mt = (MorphTarget*)rwResize(this->morphTarget,
 		sz*this->numMorphTargets, MEMDUR_EVENT | ID_GEOMETRY);
-	this->morphTargets = mt;
+	this->morphTarget = mt;
 	V3d *vdata = (V3d*)&mt[this->numMorphTargets];
 	for(int32 i = 0; i < this->numMorphTargets; i++){
 		mt->parent = this;
-		mt->vertices = nil;
+		mt->verts = nil;
 		mt->normals = nil;
 		if(this->numVertices){
-			mt->vertices = vdata;
+			mt->verts = vdata;
 			vdata += this->numVertices;
 			if(this->flags & NORMALS){
 				mt->normals = vdata;
@@ -435,7 +435,7 @@ isDegenerate(uint16 *idx)
 void
 Geometry::generateTriangles(int8 *adc)
 {
-	MeshHeader *header = this->meshHeader;
+	MeshHeader *header = this->mesh;
 	assert(header != nil);
 
 	this->numTriangles = 0;
@@ -475,17 +475,17 @@ Geometry::generateTriangles(int8 *adc)
 				if((adc && adcbits[j+2]) ||
 				   isDegenerate(&m->indices[j]))
 					continue;
-				tri->v[0] = m->indices[j+0];
-				tri->v[1] = m->indices[j+1 + (j%2)];
-				tri->v[2] = m->indices[j+2 - (j%2)];
+				tri->vertIndex[0] = m->indices[j+0];
+				tri->vertIndex[1] = m->indices[j+1 + (j%2)];
+				tri->vertIndex[2] = m->indices[j+2 - (j%2)];
 				tri->matId = matid;
 				tri++;
 			}
 		else
 			for(uint32 j = 0; j < m->numIndices-2; j+=3){
-				tri->v[0] = m->indices[j+0];
-				tri->v[1] = m->indices[j+1];
-				tri->v[2] = m->indices[j+2];
+				tri->vertIndex[0] = m->indices[j+0];
+				tri->vertIndex[1] = m->indices[j+1];
+				tri->vertIndex[2] = m->indices[j+2];
 				tri->matId = matid;
 				tri++;
 			}
@@ -521,8 +521,8 @@ Geometry::buildMeshes(void)
 		return;
 	}
 
-	rwFree(this->meshHeader);
-	this->meshHeader = nil;
+	rwFree(this->mesh);
+	this->mesh = nil;
 	int32 numMeshes = this->matList.numMaterials;
 	if((this->flags & Geometry::TRISTRIP) == 0){
 		int32 *numIndices = rwNewT(int32, numMeshes,
@@ -538,12 +538,12 @@ Geometry::buildMeshes(void)
 		}
 		// setup meshes
 		this->allocateMeshes(numMeshes, this->numTriangles*3, 0);
-		mesh = this->meshHeader->getMeshes();
+		mesh = this->mesh->getMeshes();
 		for(int32 i = 0; i < numMeshes; i++){
 			mesh[i].material = this->matList.materials[i];
 			mesh[i].numIndices = numIndices[i];
 		}
-		this->meshHeader->setupIndices();
+		this->mesh->setupIndices();
 		rwFree(numIndices);
 
 		// now fill in the indices
@@ -552,9 +552,9 @@ Geometry::buildMeshes(void)
 		tri = this->triangles;
 		for(int32 i = 0; i < this->numTriangles; i++){
 			uint32 idx = mesh[tri->matId].numIndices;
-			mesh[tri->matId].indices[idx++] = tri->v[0];
-			mesh[tri->matId].indices[idx++] = tri->v[1];
-			mesh[tri->matId].indices[idx++] = tri->v[2];
+			mesh[tri->matId].indices[idx++] = tri->vertIndex[0];
+			mesh[tri->matId].indices[idx++] = tri->vertIndex[1];
+			mesh[tri->matId].indices[idx++] = tri->vertIndex[2];
 			mesh[tri->matId].numIndices = idx;
 			tri++;
 		}
@@ -568,23 +568,23 @@ Geometry::buildMeshes(void)
 void
 Geometry::correctTristripWinding(void)
 {
-	MeshHeader *header = this->meshHeader;
+	MeshHeader *header = this->mesh;
 	if(this->flags & NATIVE || header == nil ||
 	   header->flags != MeshHeader::TRISTRIP)
 		return;
-	this->meshHeader = nil;
+	this->mesh = nil;
 	// Allocate no indices, we realloc later
 	MeshHeader *newhead = this->allocateMeshes(header->numMeshes, 0, 1);
 	newhead->flags = header->flags;
 	/* get a temporary working buffer */
-	uint16 *indices = rwNewT(uint16, header->totalIndices*2,
+	uint16 *indices = rwNewT(uint16, header->totalIndicesInMesh*2,
 		MEMDUR_FUNCTION | ID_GEOMETRY);
 
 	Mesh *mesh = header->getMeshes();
 	Mesh *newmesh = newhead->getMeshes();
 	for(uint16 i = 0; i < header->numMeshes; i++){
 		newmesh->numIndices = 0;
-		newmesh->indices = &indices[newhead->totalIndices];
+		newmesh->indices = &indices[newhead->totalIndicesInMesh];
 		newmesh->material = mesh->material;
 
 		bool inStrip = 0;
@@ -608,24 +608,24 @@ Geometry::correctTristripWinding(void)
 		}
 		for(; j < mesh->numIndices; j++)
 			newmesh->indices[newmesh->numIndices++] = mesh->indices[j];
-		newhead->totalIndices += newmesh->numIndices;
+		newhead->totalIndicesInMesh += newmesh->numIndices;
 
 		mesh++;
 		newmesh++;
 	}
 	rwFree(header);
 	// Now allocate indices and copy them
-	this->allocateMeshes(newhead->numMeshes, newhead->totalIndices, 0);
-	memcpy(this->meshHeader->getMeshes()->indices, indices, this->meshHeader->totalIndices*2);
+	this->allocateMeshes(newhead->numMeshes, newhead->totalIndicesInMesh, 0);
+	memcpy(this->mesh->getMeshes()->indices, indices, this->mesh->totalIndicesInMesh*2);
 	rwFree(indices);
 }
 
 void
 Geometry::removeUnusedMaterials(void)
 {
-	if(this->meshHeader == nil)
+	if(this->mesh == nil)
 		return;
-	MeshHeader *mh = this->meshHeader;
+	MeshHeader *mh = this->mesh;
 	Mesh *m = mh->getMeshes();
 	for(uint32 i = 0; i < mh->numMeshes; i++)
 		if(m[i].indices == nil)
@@ -654,8 +654,8 @@ Geometry::removeUnusedMaterials(void)
 	this->matList.numMaterials = numMaterials;
 
 	/* Build new meshes */
-	this->meshHeader = nil;
-	MeshHeader *newmh = this->allocateMeshes(numMaterials, mh->totalIndices, 0);
+	this->mesh = nil;
+	MeshHeader *newmh = this->allocateMeshes(numMaterials, mh->totalIndicesInMesh, 0);
 	newmh->flags = mh->flags;
 	Mesh *newm = newmh->getMeshes();
 	for(uint32 i = 0; i < mh->numMeshes; i++){
@@ -689,7 +689,7 @@ MorphTarget::calculateBoundingSphere(void) const
 	Sphere sphere;
 	V3d min = {  1000000.0f,  1000000.0f,  1000000.0f };
 	V3d max = { -1000000.0f, -1000000.0f, -1000000.0f };
-	V3d *v = this->vertices;
+	V3d *v = this->verts;
 	for(int32 j = 0; j < this->parent->numVertices; j++){
 		if(v->x > max.x) max.x = v->x;
 		if(v->x < min.x) min.x = v->x;

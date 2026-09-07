@@ -42,20 +42,20 @@ HAnimHierarchy::create(int32 numNodes, int32 *nodeFlags, int32 *nodeIDs,
 	hier->parentFrame = nil;
 	hier->parentHierarchy = hier;
 	if(hier->flags & NOMATRICES){
-		hier->matrices = nil;
+		hier->pMatrixArray = nil;
 		hier->matricesUnaligned = nil;
 	}else{
 		hier->matricesUnaligned = rwNew(hier->numNodes*64 + 0xF, MEMDUR_EVENT | ID_HANIM);
-		hier->matrices =
+		hier->pMatrixArray =
 		  (Matrix*)(((uintptr)hier->matricesUnaligned + 0xF) & ~0xF);
 	}
 	hier->nodeInfo = rwNewT(HAnimNodeInfo, hier->numNodes, MEMDUR_EVENT | ID_HANIM);
 	for(int32 i = 0; i < hier->numNodes; i++){
 		if(nodeIDs)
-			hier->nodeInfo[i].id = nodeIDs[i];
+			hier->nodeInfo[i].nodeID = nodeIDs[i];
 		else
-			hier->nodeInfo[i].id = 0;
-		hier->nodeInfo[i].index = i;
+			hier->nodeInfo[i].nodeID = 0;
+		hier->nodeInfo[i].nodeIndex = i;
 		if(nodeFlags)
 			hier->nodeInfo[i].flags = nodeFlags[i];
 		else
@@ -99,7 +99,7 @@ findUnattachedById(HAnimHierarchy *hier, Frame *f, int32 id)
 void
 HAnimHierarchy::attachByIndex(int32 idx)
 {
-	int32 id = this->nodeInfo[idx].id;
+	int32 id = this->nodeInfo[idx].nodeID;
 //	Frame *f = findById(this->parentFrame, id);
 	Frame *f = findUnattachedById(this, this->parentFrame, id);
 	if(f)
@@ -117,7 +117,7 @@ int32
 HAnimHierarchy::getIndex(int32 id)
 {
 	for(int32 i = 0; i < this->numNodes; i++)
-		if(this->nodeInfo[i].id == id)
+		if(this->nodeInfo[i].nodeID == id)
 			return i;
 	return -1;
 }
@@ -161,7 +161,7 @@ HAnimHierarchy::updateMatrices(void)
 	AnimInterpolator *anim = this->interpolator;
 
 	sp = stack;
-	curMat = this->matrices;
+	curMat = this->pMatrixArray;
 
 	frm = this->parentFrame;
 	if(frm && (parfrm = frm->getParent()) && !(this->flags&LOCALSPACEMATRICES))
@@ -239,8 +239,8 @@ copyHAnim(void *dst, void *src, int32 offset, int32)
 		for(i = 0; i < dsthier->numNodes; i++){
 			dsthier->nodeInfo[i].frame = nil;
 			dsthier->nodeInfo[i].flags = srchier->nodeInfo[i].flags;
-			dsthier->nodeInfo[i].index = srchier->nodeInfo[i].index;
-			dsthier->nodeInfo[i].id = srchier->nodeInfo[i].id;
+			dsthier->nodeInfo[i].nodeIndex = srchier->nodeInfo[i].nodeIndex;
+			dsthier->nodeInfo[i].nodeID = srchier->nodeInfo[i].nodeID;
 		}
 		dsthanim->hierarchy = dsthier;
 		dsthier->parentFrame = (Frame*)dst;
@@ -295,8 +295,8 @@ writeHAnim(Stream *stream, int32, void *object, int32 offset, int32)
 	stream->writeI32(hier->flags);
 	stream->writeI32(hier->interpolator->maxInterpKeyFrameSize);
 	for(int32 i = 0; i < hier->numNodes; i++){
-		stream->writeI32(hier->nodeInfo[i].id);
-		stream->writeI32(hier->nodeInfo[i].index);
+		stream->writeI32(hier->nodeInfo[i].nodeID);
+		stream->writeI32(hier->nodeInfo[i].nodeIndex);
 		stream->writeI32(hier->nodeInfo[i].flags);
 	}
 	return stream;

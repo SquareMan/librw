@@ -39,7 +39,7 @@ Frame::create(void)
 	f->child = nil;
 	f->next = nil;
 	f->root = f;
-	f->matrix.setIdentity();
+	f->modelling.setIdentity();
 	f->ltm.setIdentity();
 	s_plglist.construct(f);
 	return f;
@@ -177,7 +177,7 @@ syncLTMRecurse(Frame *frame, uint8 hierarchyFlags)
 		// If frame is dirty or any parent was dirty, update LTM
 		hierarchyFlags |= frame->object.privateFlags;
 		if(hierarchyFlags & Frame::SUBTREESYNCLTM){
-			Matrix::mult(&frame->ltm, &frame->matrix,
+			Matrix::mult(&frame->ltm, &frame->modelling,
 			             &frame->getParent()->ltm);
 			frame->object.privateFlags &= ~Frame::SUBTREESYNCLTM;
 		}
@@ -208,7 +208,7 @@ syncRecurse(Frame *frame, uint8 hierarchyFlags)
 		// If frame is dirty or any parent was dirty, update LTM
 		hierarchyFlags |= frame->object.privateFlags;
 		if(hierarchyFlags & Frame::SUBTREESYNCLTM)
-			Matrix::mult(&frame->ltm, &frame->matrix,
+			Matrix::mult(&frame->ltm, &frame->modelling,
 			             &frame->getParent()->ltm);
 		// Synch attached objects
 		FORLIST(lnk, frame->objectList)
@@ -225,7 +225,7 @@ Frame::syncHierarchyLTM(void)
 {
 	// Sync root's LTM
 	if(this->object.privateFlags & Frame::SUBTREESYNCLTM)
-		this->ltm = this->matrix;
+		this->ltm = this->modelling;
 	// ...and children
 	syncLTMRecurse(this->child, this->object.privateFlags);
 	// all clean now
@@ -250,7 +250,7 @@ Frame::syncDirty(void)
 		if(frame->object.privateFlags & Frame::HIERARCHYSYNCLTM){
 			// Sync root's LTM
 			if(frame->object.privateFlags & Frame::SUBTREESYNCLTM)
-				frame->ltm = frame->matrix;
+				frame->ltm = frame->modelling;
 			// Synch attached objects
 			FORLIST(lnk, frame->objectList)
 				ObjectWithFrame::fromFrame(lnk)->sync();
@@ -271,35 +271,35 @@ Frame::syncDirty(void)
 void
 Frame::rotate(const V3d *axis, float32 angle, CombineOp op)
 {
-	this->matrix.rotate(axis, angle, op);
+	this->modelling.rotate(axis, angle, op);
 	updateObjects();
 }
 
 void
 Frame::rotate(const Quat *q, CombineOp op)
 {
-	this->matrix.rotate(*q, op);
+	this->modelling.rotate(*q, op);
 	updateObjects();
 }
 
 void
 Frame::translate(const V3d *trans, CombineOp op)
 {
-	this->matrix.translate(trans, op);
+	this->modelling.translate(trans, op);
 	updateObjects();
 }
 
 void
 Frame::scale(const V3d *scl, CombineOp op)
 {
-	this->matrix.scale(scl, op);
+	this->modelling.scale(scl, op);
 	updateObjects();
 }
 
 void
 Frame::transform(const Matrix *mat, CombineOp op)
 {
-	this->matrix.transform(mat, op);
+	this->modelling.transform(mat, op);
 	updateObjects();
 }
 
@@ -329,7 +329,7 @@ cloneRecurse(Frame *old, Frame *newroot)
 	if(newroot == nil)
 		newroot = frame;
 	frame->object.copy(&old->object);
-	frame->matrix = old->matrix;
+	frame->modelling = old->modelling;
 	frame->root = newroot;
 	old->root = frame;	// Remember cloned frame
 	for(Frame *child = old->child; child; child = child->next){
@@ -395,13 +395,13 @@ FrameList_::streamRead(Stream *stream)
 			rwFree(this->frames);
 			return nil;
 		}
-		f->matrix.right = buf.right;
-		f->matrix.up = buf.up;
-		f->matrix.at = buf.at;
-		f->matrix.pos = buf.pos;
-		f->matrix.optimize();
+		f->modelling.right = buf.right;
+		f->modelling.up = buf.up;
+		f->modelling.at = buf.at;
+		f->modelling.pos = buf.pos;
+		f->modelling.optimize();
 		// RW always removes identity flag
-		f->matrix.flags &= ~Matrix::IDENTITY;
+		f->modelling.flags &= ~Matrix::IDENTITY;
 		if(buf.parent >= 0)
 			this->frames[buf.parent]->addChild(f, rw::streamAppendFrames);
 	}
@@ -426,10 +426,10 @@ FrameList_::streamWrite(Stream *stream)
 	stream->writeU32(this->numFrames);
 	for(int32 i = 0; i < this->numFrames; i++){
 		Frame *f = this->frames[i];
-		buf.right = f->matrix.right;
-		buf.up = f->matrix.up;
-		buf.at = f->matrix.at;
-		buf.pos = f->matrix.pos;
+		buf.right = f->modelling.right;
+		buf.up = f->modelling.up;
+		buf.at = f->modelling.at;
+		buf.pos = f->modelling.pos;
 		buf.parent = findPointer(f->getParent(), (void**)this->frames,
 		                         this->numFrames);
 		buf.matflag = 0; //f->matflag;

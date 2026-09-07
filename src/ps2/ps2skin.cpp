@@ -206,11 +206,11 @@ findVertexSkin(Geometry *g, uint32 flags[], uint32 mask, Vertex *v)
 		inds = skin->indices;
 	}
 
-	V3d *verts = g->morphTargets[0].vertices;
+	V3d *verts = g->morphTarget[0].verts;
 	TexCoords *tex = g->texCoords[0];
 	TexCoords *tex1 = g->texCoords[1];
-	V3d *norms = g->morphTargets[0].normals;
-	RGBA *cols = g->colors;
+	V3d *norms = g->morphTarget[0].normals;
+	RGBA *cols = g->preLitLum;
 
 	for(int32 i = 0; i < g->numVertices; i++){
 		uint32 flag = flags ? flags[i] : ~0;
@@ -315,7 +315,7 @@ skinPreCB(MatPipeline*, Geometry *geo)
 	uint8 *data = skin->data;
 	float *invMats = skin->inverseMatrices;
 	// meshHeader->totalIndices is highest possible number of vertices again
-	skin->init(skin->numBones, skin->numBones, geo->meshHeader->totalIndices);
+	skin->init(skin->numBones, skin->numBones, geo->mesh->totalIndicesInMesh);
 	memcpy(skin->inverseMatrices, invMats, skin->numBones*64);
 	rwFree(data);
 }

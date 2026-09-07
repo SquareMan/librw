@@ -250,7 +250,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 		return stream;
 	stream->writeU32(PLATFORM_D3D9);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
-	int32 size = 64 + geometry->meshHeader->numMeshes*36;
+	int32 size = 64 + geometry->mesh->numMeshes*36;
 	uint8 *data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_GEOMETRY);
 	stream->writeI32(size);
 
@@ -345,7 +345,7 @@ static InstanceDataHeader*
 instanceMesh(rw::ObjPipeline *rwpipe, Geometry *geo)
 {
 	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
-	MeshHeader *meshh = geo->meshHeader;
+	MeshHeader *meshh = geo->mesh;
 	header->platform = PLATFORM_D3D9;
 
 	header->serialNumber = meshh->serialNum;
@@ -354,7 +354,7 @@ instanceMesh(rw::ObjPipeline *rwpipe, Geometry *geo)
 	header->useOffsets = 0;
 	header->vertexDeclaration = nil;
 	header->totalNumVertex = geo->numVertices;
-	header->totalNumIndex = meshh->totalIndices;
+	header->totalNumIndex = meshh->totalIndicesInMesh;
 	header->inst = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 
 	header->indexBuffer = createIndexBuffer(header->totalNumIndex*2, false);
@@ -402,7 +402,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	if(geo->instData){
 		// Already have instanced data, so check if we have to reinstance
 		assert(header->platform == PLATFORM_D3D9);
-		if(header->serialNumber != geo->meshHeader->serialNum){
+		if(header->serialNumber != geo->mesh->serialNum){
 			// Mesh changed, so reinstance everything
 			freeInstanceData(geo);
 		}
@@ -427,14 +427,14 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D9);
-	geo->numTriangles = geo->meshHeader->guessNumTriangles();
+	geo->numTriangles = geo->mesh->guessNumTriangles();
 	geo->allocateData();
-	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
+	geo->allocateMeshes(geo->mesh->numMeshes, geo->mesh->totalIndicesInMesh, 0);
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	uint16 *indices = lockIndices(header->indexBuffer, 0, 0, 0);
 	InstanceData *inst = header->inst;
-	Mesh *mesh = geo->meshHeader->getMeshes();
+	Mesh *mesh = geo->mesh->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		if(inst->minVert == 0)
 			memcpy(mesh->indices, &indices[inst->startIndex], inst->numIndex*2);
@@ -589,7 +589,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
 			;
 		instV3d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
-			geo->morphTargets[0].vertices,
+			geo->morphTarget[0].verts,
 			header->totalNumVertex,
 			header->vertexStream[dcl[i].stream].stride);
 	}
@@ -604,7 +604,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 			uint32 stride = header->vertexStream[dcl[i].stream].stride;
 			inst->vertexAlpha = instColor(vertFormatMap[dcl[i].type],
 				verts + dcl[i].offset + stride*inst->minVert,
-				geo->colors + inst->minVert,
+				geo->preLitLum + inst->minVert,
 				inst->numVertices,
 				stride);
 			inst++;
@@ -628,7 +628,7 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_NORMAL || dcl[i].usageIndex != 0; i++)
 			;
 		instV3d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
-			geo->morphTargets[0].normals,
+			geo->morphTarget[0].normals,
 			header->totalNumVertex,
 			header->vertexStream[dcl[i].stream].stride);
 	}
@@ -649,7 +649,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 	for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
 		;
 	uninstV3d(vertFormatMap[dcl[i].type],
-		  geo->morphTargets[0].vertices,
+		  geo->morphTarget[0].verts,
 	          verts[dcl[i].stream] + dcl[i].offset,
 		  header->totalNumVertex,
 		  header->vertexStream[dcl[i].stream].stride);
@@ -658,7 +658,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_COLOR || dcl[i].usageIndex != 0; i++)
 			;
 		uninstColor(vertFormatMap[dcl[i].type],
-			    geo->colors,
+			    geo->preLitLum,
 		            verts[dcl[i].stream] + dcl[i].offset,
 			    header->totalNumVertex,
 			    header->vertexStream[dcl[i].stream].stride);
@@ -678,7 +678,7 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_NORMAL || dcl[i].usageIndex != 0; i++)
 			;
 		uninstV3d(vertFormatMap[dcl[i].type],
-			  geo->morphTargets[0].normals,
+			  geo->morphTarget[0].normals,
 		          verts[dcl[i].stream] + dcl[i].offset,
 			  header->totalNumVertex,
 			  header->vertexStream[dcl[i].stream].stride);

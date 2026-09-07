@@ -398,7 +398,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		a[i].stride = offset;
 
 	uint8 *p = header->data + a->offset;
-	V3d *vert = geo->morphTargets->vertices;
+	V3d *vert = geo->morphTarget->verts;
 	for(int32 i = 0; i < geo->numVertices; i++){
 		packattrib(p, (float32*)vert, a);
 		vert++;
@@ -419,7 +419,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	if(geo->flags & Geometry::NORMALS){
 		p = header->data + a->offset;
-		V3d *norm = geo->morphTargets->normals;
+		V3d *norm = geo->morphTarget->normals;
 		for(int32 i = 0; i < geo->numVertices; i++){
 			packattrib(p, (float32*)norm, a);
 			norm++;
@@ -431,7 +431,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	if(geo->flags & Geometry::PRELIT){
 		// TODO: this seems too complicated
 		p = header->data + a->offset;
-		RGBA *color = geo->colors;
+		RGBA *color = geo->preLitLum;
 		float32 f[4];
 		for(int32 i = 0; i < geo->numVertices; i++){
 			f[0] = color->red/255.0f;
@@ -455,14 +455,14 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_WDGL);
-	geo->numTriangles = geo->meshHeader->guessNumTriangles();
+	geo->numTriangles = geo->mesh->guessNumTriangles();
 	geo->allocateData();
 
 	uint8 *p;
 	TexCoords *texcoord = geo->texCoords[0];
-	RGBA *color = geo->colors;
-	V3d *vert = geo->morphTargets->vertices;
-	V3d *norm = geo->morphTargets->normals;
+	RGBA *color = geo->preLitLum;
+	V3d *vert = geo->morphTarget->verts;
+	V3d *norm = geo->morphTarget->normals;
 	float32 f[4];
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;

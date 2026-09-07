@@ -274,8 +274,8 @@ readSkinLegacy(Stream *stream, int32 len, void *object, int32, int32)
 	HAnimHierarchy *hier = HAnimHierarchy::create(numBones, nil, nil, 0, 36);
 
 	for(int i = 0; i < numBones; i++){
-		hier->nodeInfo[i].id = stream->readI32();
-		hier->nodeInfo[i].index = stream->readI32();
+		hier->nodeInfo[i].nodeID = stream->readI32();
+		hier->nodeInfo[i].nodeIndex = stream->readI32();
 		hier->nodeInfo[i].flags = stream->readI32() & 3;
 //		printf("%d %d %d %d\n", i, hier->nodeInfo[i].id, hier->nodeInfo[i].index, hier->nodeInfo[i].flags);
 		stream->read32(&skin->inverseMatrices[i*16], 64);

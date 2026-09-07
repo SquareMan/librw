@@ -73,10 +73,14 @@ struct RwStateCache {
 	bool32 vertexAlpha;
 	bool32 textureAlpha;
 	uint32 srcblend, destblend;
+	bool32 vertexAlphaEnable;
 	uint32 zwrite;
 	uint32 ztest;
+	uint32 shadeMode;
 	uint32 fogenable;
 	RGBA fogcolor;
+	uint32 fogType;
+	uint32 fogDensity;
 	uint32 cullmode;
 	uint32 stencilenable;
 	uint32 stencilpass;
@@ -649,9 +653,23 @@ setRwRenderState(int32 state, void *pvalue)
 			setRenderState(D3DRS_DESTBLEND, blendMap[value]);
 		}
 		break;
+	case VERTEXALPHAENABLE:
+		if(rwStateCache.vertexAlphaEnable != value) {
+			rwStateCache.vertexAlphaEnable = value;
+			// TODO: figure this one out
+			// setRenderState(????, value);
+		}
+		break;
 	case ZTESTENABLE:
 		setDepthTest(bval);
 		break;
+	case SHADEMODE:
+		if(rwStateCache.shadeMode != value)
+		{
+			rwStateCache.shadeMode = value;
+			// TODO: figure this one out
+			// setRenderState(????, value);
+		}
 	case ZWRITEENABLE:
 		setDepthWrite(bval);
 		break;
@@ -675,6 +693,22 @@ setRwRenderState(int32 state, void *pvalue)
 			convColor(&d3dShaderState.fogColor, &c);
 			d3dShaderState.fogDirty = true;
 		}} break;
+	case FOGTYPE:{
+		if(rwStateCache.fogType != value)
+		{
+			rwStateCache.fogType = value;
+			// TODO: figure this one out
+			// setRenderState(????, value);
+		}
+	}
+	case FOGDENSITY: {
+		if(rwStateCache.fogDensity != value)
+		{
+			rwStateCache.fogDensity = value;
+			// TODO: figure this one out
+			// setRenderState(????, value);
+		}
+	}
 	case CULLMODE:
 		if(rwStateCache.cullmode != value){
 			rwStateCache.cullmode = value;
@@ -784,14 +818,26 @@ getRwRenderState(int32 state)
 	case DESTBLEND:
 		val = rwStateCache.destblend;
 		break;
+	case VERTEXALPHAENABLE:
+		val = rwStateCache.vertexAlphaEnable;
+		break;
 	case ZTESTENABLE:
 		val = rwStateCache.ztest;
+		break;
+	case SHADEMODE:
+		val = rwStateCache.shadeMode;
 		break;
 	case ZWRITEENABLE:
 		val = rwStateCache.zwrite;
 		break;
 	case FOGENABLE:
 		val = rwStateCache.fogenable;
+		break;
+	case FOGTYPE:
+		val = rwStateCache.fogType;
+		break;
+	case FOGDENSITY:
+		val = rwStateCache.fogDensity;
 		break;
 	case FOGCOLOR:
 		val = RWRGBAINT(rwStateCache.fogcolor.red, rwStateCache.fogcolor.green,

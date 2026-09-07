@@ -156,7 +156,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_POSITION || dcl[i].usageIndex != 0; i++)
 			;
 		instV3d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
-			geo->morphTargets[0].vertices,
+			geo->morphTarget[0].verts,
 			header->totalNumVertex,
 			header->vertexStream[dcl[i].stream].stride);
 	}
@@ -171,7 +171,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 			uint32 stride = header->vertexStream[dcl[i].stream].stride;
 			inst->vertexAlpha = instColor(vertFormatMap[dcl[i].type],
 				verts + dcl[i].offset + stride*inst->minVert,
-				geo->colors + inst->minVert,
+				geo->preLitLum + inst->minVert,
 				inst->numVertices,
 				stride);
 			inst++;
@@ -195,7 +195,7 @@ skinInstanceCB(Geometry *geo, InstanceDataHeader *header, bool32 reinstance)
 		for(i = 0; dcl[i].usage != D3DDECLUSAGE_NORMAL || dcl[i].usageIndex != 0; i++)
 			;
 		instV3d(vertFormatMap[dcl[i].type], verts + dcl[i].offset,
-			geo->morphTargets[0].normals,
+			geo->morphTarget[0].normals,
 			header->totalNumVertex,
 			header->vertexStream[dcl[i].stream].stride);
 	}
@@ -247,7 +247,7 @@ uploadSkinMatrices(Atomic *a)
 		if(hier->flags & HAnimHierarchy::LOCALSPACEMATRICES){
 			for(i = 0; i < hier->numNodes; i++){
 				invMats[i].flags = 0;
-				Matrix::mult(&tmp, &invMats[i], &hier->matrices[i]);
+				Matrix::mult(&tmp, &invMats[i], &hier->pMatrixArray[i]);
 				RawMatrix::transpose((RawMatrix*)m, (RawMatrix*)&tmp);
 				m += 12;
 			}
@@ -256,7 +256,7 @@ uploadSkinMatrices(Atomic *a)
 			Matrix::invert(&invAtmMat, a->getFrame()->getLTM());
 			for(i = 0; i < hier->numNodes; i++){
 				invMats[i].flags = 0;
-				Matrix::mult(&tmp, &hier->matrices[i], &invAtmMat);
+				Matrix::mult(&tmp, &hier->pMatrixArray[i], &invAtmMat);
 				Matrix::mult(&tmp2, &invMats[i], &tmp);
 				RawMatrix::transpose((RawMatrix*)m, (RawMatrix*)&tmp2);
 				m += 12;

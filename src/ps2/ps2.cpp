@@ -96,10 +96,10 @@ readNativeData(Stream *stream, int32, void *object, int32, int32)
 	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	geometry->instData = header;
 	header->platform = PLATFORM_PS2;
-	assert(geometry->meshHeader != nil);
-	header->numMeshes = geometry->meshHeader->numMeshes;
+	assert(geometry->mesh != nil);
+	header->numMeshes = geometry->mesh->numMeshes;
 	header->instanceMeshes = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
-	Mesh *m = geometry->meshHeader->getMeshes();
+	Mesh *m = geometry->mesh->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		InstanceData *instance = &header->instanceMeshes[i];
 		uint32 buf[2];
@@ -318,7 +318,7 @@ uint32*
 instanceXYZ(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 {
 	uint16 j;
-	uint32 *d = (uint32*)g->morphTargets[0].vertices;
+	uint32 *d = (uint32*)g->morphTarget[0].verts;
 	for(uint32 i = idx; i < idx+n; i++){
 		j = m->indices[i];
 		*p++ = d[j*3+0];
@@ -334,7 +334,7 @@ uint32*
 instanceXYZW(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 {
 	uint16 j;
-	uint32 *d = (uint32*)g->morphTargets[0].vertices;
+	uint32 *d = (uint32*)g->morphTarget[0].verts;
 	int8 *adcbits = getADCbitsForMesh(g, m);
 	for(uint32 i = idx; i < idx+n; i++){
 		j = m->indices[i];
@@ -401,7 +401,7 @@ uint32*
 instanceRGBA(uint32 *p, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 {
 	uint16 j;
-	uint32 *d = (uint32*)g->colors;
+	uint32 *d = (uint32*)g->preLitLum;
 	if((g->flags & Geometry::PRELIT))
 		for(uint32 i = idx; i < idx+n; i++){
 			j = m->indices[i];
@@ -419,7 +419,7 @@ uint32*
 instanceNormal(uint32 *wp, Geometry *g, Mesh *m, uint32 idx, uint32 n)
 {
 	uint16 j;
-	V3d *d = g->morphTargets[0].normals;
+	V3d *d = g->morphTarget[0].normals;
 	uint8 *p = (uint8*)wp;
 	if((g->flags & Geometry::NORMALS))
 		for(uint32 i = idx; i < idx+n; i++){
@@ -598,7 +598,7 @@ getInstMeshInfo(MatPipeline *pipe, Geometry *g, Mesh *m)
 				im.numAttribs++;
 			}
 		}
-	if(g->meshHeader->flags == MeshHeader::TRISTRIP){
+	if(g->mesh->flags == MeshHeader::TRISTRIP){
 		im.numBatches = (m->numIndices-2) / (pipe->triStripCount-2);
 		im.batchVertCount = pipe->triStripCount;
 		im.lastBatchVertCount = (m->numIndices-2) % (pipe->triStripCount-2);
@@ -695,7 +695,7 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 				*p++ = VIF_NOP;
 				*p++ = VIF_NOP;
 
-				im.attribPos[i] += g->meshHeader->flags == 1 ?
+				im.attribPos[i] += g->mesh->flags == 1 ?
 					QWC((im.batchVertCount-2)*atsz) :
 					QWC(im.batchVertCount*atsz);
 			}
@@ -738,7 +738,7 @@ MatPipeline::instance(Geometry *g, InstanceData *inst, Mesh *m)
 				else if(a == &attribNormal)
 					p = instanceNormal(p, g, m, idx, nverts);
 			}
-		idx += g->meshHeader->flags == 1
+		idx += g->mesh->flags == 1
 			? im.batchVertCount-2 : im.batchVertCount;
 
 		*p++ = VIF_ITOP | nverts;
@@ -781,7 +781,7 @@ MatPipeline::collectData(Geometry *g, InstanceData *inst, Mesh *m, uint8 *data[]
 	uint8 *datap[nelem(this->attribs)];
 	memcpy(datap, data, sizeof(datap));
 
-	uint32 overlap = g->meshHeader->flags == 1 ? 2 : 0;
+	uint32 overlap = g->mesh->flags == 1 ? 2 : 0;
 	uint32 *p = (uint32*)inst->data;
 	if(im.numBrokenAttribs == 0)
 		p += 4;
@@ -821,11 +821,11 @@ objInstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
 	geo->instData = header;
 	header->platform = PLATFORM_PS2;
-	assert(geo->meshHeader != nil);
-	header->numMeshes = geo->meshHeader->numMeshes;
+	assert(geo->mesh != nil);
+	header->numMeshes = geo->mesh->numMeshes;
 	header->instanceMeshes = rwNewT(InstanceData, header->numMeshes, MEMDUR_EVENT | ID_GEOMETRY);
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geo->meshHeader->getMeshes()[i];
+		Mesh *mesh = &geo->mesh->getMeshes()[i];
 		InstanceData *instance = &header->instanceMeshes[i];
 
 		MatPipeline *m;
@@ -881,16 +881,16 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	assert(geo->instData->platform == PLATFORM_PS2);
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	// highest possible number of vertices
-	geo->numVertices = geo->meshHeader->totalIndices;
-	geo->numTriangles = geo->meshHeader->guessNumTriangles();
+	geo->numVertices = geo->mesh->totalIndicesInMesh;
+	geo->numTriangles = geo->mesh->guessNumTriangles();
 	geo->allocateData();
-	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
+	geo->allocateMeshes(geo->mesh->numMeshes, geo->mesh->totalIndicesInMesh, 0);
 	uint32 *flags = rwNewT(uint32, geo->numVertices,
 		MEMDUR_FUNCTION | ID_GEOMETRY);
 	memset(flags, 0, 4*geo->numVertices);
-	memset(geo->meshHeader->getMeshes()->indices, 0, 2*geo->meshHeader->totalIndices);
+	memset(geo->mesh->getMeshes()->indices, 0, 2*geo->mesh->totalIndicesInMesh);
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geo->meshHeader->getMeshes()[i];
+		Mesh *mesh = &geo->mesh->getMeshes()[i];
 		MatPipeline *m;
 		m = pipe->groupPipeline ?
 		    pipe->groupPipeline :
@@ -900,7 +900,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	}
 	geo->numVertices = 0;
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geo->meshHeader->getMeshes()[i];
+		Mesh *mesh = &geo->mesh->getMeshes()[i];
 		InstanceData *instance = &header->instanceMeshes[i];
 		MatPipeline *m;
 		m = pipe->groupPipeline ?
@@ -916,7 +916,7 @@ objUninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		rwFree(raw);
 	}
 	for(uint32 i = 0; i < header->numMeshes; i++){
-		Mesh *mesh = &geo->meshHeader->getMeshes()[i];
+		Mesh *mesh = &geo->mesh->getMeshes()[i];
 		MatPipeline *m;
 		m = pipe->groupPipeline ?
 		    pipe->groupPipeline :
@@ -965,11 +965,11 @@ void
 insertVertex(Geometry *geo, int32 i, uint32 mask, Vertex *v)
 {
 	if(mask & 0x1)
-		geo->morphTargets[0].vertices[i] = v->p;
+		geo->morphTarget[0].verts[i] = v->p;
 	if(mask & 0x10)
-		geo->morphTargets[0].normals[i] = v->n;
+		geo->morphTarget[0].normals[i] = v->n;
 	if(mask & 0x100)
-		geo->colors[i] = v->c;
+		geo->preLitLum[i] = v->c;
 	if(mask & 0x1000)
 		geo->texCoords[0][i] = v->t;
 	if(mask & 0x2000)
@@ -1165,9 +1165,9 @@ getADCbitsForMesh(Geometry *geo, Mesh *mesh)
 	int8 *bits = getADCbits(geo);
 	if(bits == nil)
 		return nil;
-	int32 n = mesh - geo->meshHeader->getMeshes();
+	int32 n = mesh - geo->mesh->getMeshes();
 	for(int32 i = 0; i < n; i++)
-		bits += geo->meshHeader->getMeshes()[i].numIndices;
+		bits += geo->mesh->getMeshes()[i].numIndices;
 	return bits;
 }
 
@@ -1186,8 +1186,8 @@ unconvertADC(Geometry *g)
 		return;
 	int8 *b = adc->adcBits;
 
-	MeshHeader *oldmh = g->meshHeader;
-	g->meshHeader = nil;
+	MeshHeader *oldmh = g->mesh;
+	g->mesh = nil;
 	// Don't allocate indices for now
 	MeshHeader *newmh = g->allocateMeshes(oldmh->numMeshes, 0, 1);
 	newmh->flags = oldmh->flags;	// should be tristrip
@@ -1199,12 +1199,12 @@ unconvertADC(Geometry *g)
 		for(uint32 j = 0; j < oldm->numIndices; j++)
 			if(*b++)
 				newm->numIndices += 2;
-		newmh->totalIndices += newm->numIndices;
+		newmh->totalIndicesInMesh += newm->numIndices;
 		newm++;
 		oldm++;
 	}
 	// Now re-allocate with indices
-	newmh = g->allocateMeshes(newmh->numMeshes, newmh->totalIndices, 0);
+	newmh = g->allocateMeshes(newmh->numMeshes, newmh->totalIndicesInMesh, 0);
 	b = adc->adcBits;
 	oldm = oldmh->getMeshes();
 	newm = newmh->getMeshes();
@@ -1232,7 +1232,7 @@ allocateADC(Geometry *geo)
 {
 	ADCData *adc = PLUGINOFFSET(ADCData, geo, adcOffset);
 	adc->adcFormatted = 1;
-	adc->numBits = geo->meshHeader->totalIndices;
+	adc->numBits = geo->mesh->totalIndicesInMesh;
 	int32 size = adc->numBits+3 & ~3;
 	adc->adcBits = rwNewT(int8, size, MEMDUR_EVENT | ID_ADC);
 	memset(adc->adcBits, 0, size);

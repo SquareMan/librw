@@ -203,7 +203,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	if(geo->instData)
 		return;
 	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
-	MeshHeader *meshh = geo->meshHeader;
+	MeshHeader *meshh = geo->mesh;
 	geo->instData = header;
 	header->platform = PLATFORM_XBOX;
 
@@ -257,22 +257,22 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	InstanceData *inst = header->begin;
-	Mesh *mesh = geo->meshHeader->getMeshes();
+	Mesh *mesh = geo->mesh->getMeshes();
 	// For some reason numIndices in mesh and instance data are not always equal
 	// And primitive isn't always correct either. Maybe some internal conversion...
-	geo->meshHeader->totalIndices = 0;
+	geo->mesh->totalIndicesInMesh = 0;
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		mesh[i].numIndices = inst[i].numIndices;
-		geo->meshHeader->totalIndices += mesh[i].numIndices;
+		geo->mesh->totalIndicesInMesh += mesh[i].numIndices;
 	}
-	geo->meshHeader->flags = header->primType == D3DPT_TRIANGLESTRIP ?
+	geo->mesh->flags = header->primType == D3DPT_TRIANGLESTRIP ?
 		MeshHeader::TRISTRIP : 0;
 
-	geo->numTriangles = geo->meshHeader->guessNumTriangles();
+	geo->numTriangles = geo->mesh->guessNumTriangles();
 	geo->allocateData();
-	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
+	geo->allocateMeshes(geo->mesh->numMeshes, geo->mesh->totalIndicesInMesh, 0);
 
-	mesh = geo->meshHeader->getMeshes();
+	mesh = geo->mesh->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		uint16 *indices = (uint16*)inst->indexBuffer;
 		memcpy(mesh->indices, indices, inst->numIndices*2);
@@ -324,19 +324,19 @@ defaultInstanceCB(Geometry *geo, InstanceDataHeader *header)
 
 	uint32 fmt = *vertexFmt;
 	uint32 sel = fmt & 0xF;
-	instV3d(v3dFormatMap[sel], dst, geo->morphTargets[0].vertices,
+	instV3d(v3dFormatMap[sel], dst, geo->morphTarget[0].verts,
 	        header->numVertices, header->stride);
 	dst += sel == 4 ? 4 : 3*vertexFormatSizes[sel];
 
 	sel = (fmt >> 4) & 0xF;
 	if(sel){
-		instV3d(v3dFormatMap[sel], dst, geo->morphTargets[0].normals,
+		instV3d(v3dFormatMap[sel], dst, geo->morphTarget[0].normals,
 		        header->numVertices, header->stride);
 		dst += sel == 4 ? 4 : 3*vertexFormatSizes[sel];
 	}
 
 	if(fmt & 0x1000000){
-		header->vertexAlpha = instColor(VERT_ARGB, dst, geo->colors,
+		header->vertexAlpha = instColor(VERT_ARGB, dst, geo->preLitLum,
 		                                header->numVertices, header->stride);
 		dst += 4;
 	}
@@ -363,19 +363,19 @@ defaultUninstanceCB(Geometry *geo, InstanceDataHeader *header)
 	uint8 *src = (uint8*)header->vertexBuffer;
 
 	uint32 sel = fmt & 0xF;
-	uninstV3d(v3dFormatMap[sel], geo->morphTargets[0].vertices, src,
+	uninstV3d(v3dFormatMap[sel], geo->morphTarget[0].verts, src,
 	          header->numVertices, header->stride);
 	src += sel == 4 ? 4 : 3*vertexFormatSizes[sel];
 
 	sel = (fmt >> 4) & 0xF;
 	if(sel){
-		uninstV3d(v3dFormatMap[sel], geo->morphTargets[0].normals, src,
+		uninstV3d(v3dFormatMap[sel], geo->morphTarget[0].normals, src,
 		          header->numVertices, header->stride);
 		src += sel == 4 ? 4 : 3*vertexFormatSizes[sel];
 	}
 
 	if(fmt & 0x1000000){
-		uninstColor(VERT_ARGB, geo->colors, src,
+		uninstColor(VERT_ARGB, geo->preLitLum, src,
 		            header->numVertices, header->stride);
 		src += 4;
 	}

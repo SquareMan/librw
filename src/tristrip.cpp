@@ -94,12 +94,12 @@ collectFaces(Geometry *geo, StripMesh *sm, uint16 m)
 		t = &geo->triangles[i];
 		if(t->matId == m){
 			n = &sm->nodes[sm->numNodes++];
-			n->v[0] = t->v[0];
-			n->v[1] = t->v[1];
-			n->v[2] = t->v[2];
-			assert(t->v[0] < geo->numVertices);
-			assert(t->v[1] < geo->numVertices);
-			assert(t->v[2] < geo->numVertices);
+			n->v[0] = t->vertIndex[0];
+			n->v[1] = t->vertIndex[1];
+			n->v[2] = t->vertIndex[2];
+			assert(t->vertIndex[0] < geo->numVertices);
+			assert(t->vertIndex[1] < geo->numVertices);
+			assert(t->vertIndex[2] < geo->numVertices);
 			n->e[0].node = 0;
 			n->e[1].node = 0;
 			n->e[2].node = 0;
@@ -573,7 +573,7 @@ Geometry::buildTristrips(void)
 	this->allocateMeshes(matList.numMaterials, 0, 1);
 
 	smesh.nodes = rwNewT(StripNode, this->numTriangles, MEMDUR_FUNCTION | ID_GEOMETRY);
-	ms = this->meshHeader->getMeshes();
+	ms = this->mesh->getMeshes();
 	for(int32 i = 0; i < this->matList.numMaterials; i++){
 		smesh.loneNodes.init();
 		smesh.endNodes.init();
@@ -593,16 +593,16 @@ printSmesh(&smesh);
 
 		ms[i].material = this->matList.materials[i];
 		makeMesh(&smesh, &ms[i]);
-		this->meshHeader->totalIndices += ms[i].numIndices;
+		this->mesh->totalIndicesInMesh += ms[i].numIndices;
 	}
 	rwFree(smesh.nodes);
 
 	/* Now re-allocate and copy data */
-	header = this->meshHeader;
-	this->meshHeader = nil;
-	this->allocateMeshes(header->numMeshes, header->totalIndices, 0);
-	this->meshHeader->flags = MeshHeader::TRISTRIP;
-	md = this->meshHeader->getMeshes();
+	header = this->mesh;
+	this->mesh = nil;
+	this->allocateMeshes(header->numMeshes, header->totalIndicesInMesh, 0);
+	this->mesh->flags = MeshHeader::TRISTRIP;
+	md = this->mesh->getMeshes();
 	indices = md->indices;
 	for(i = 0; i < header->numMeshes; i++){
 		md[i].material = ms[i].material;
@@ -632,8 +632,8 @@ verifyMesh(Geometry *geo)
 	seen = rwNewT(uint8, geo->numTriangles, MEMDUR_FUNCTION | ID_GEOMETRY);
 	memset(seen, 0, geo->numTriangles);
 
-	mesh = geo->meshHeader->getMeshes();
-	for(i = 0; i < geo->meshHeader->numMeshes; i++){
+	mesh = geo->mesh->getMeshes();
+	for(i = 0; i < geo->mesh->numMeshes; i++){
 		m = geo->matList.findIndex(mesh->material);
 		x = 0;
 		for(j = 0; j < mesh->numIndices-2; j++){
@@ -655,9 +655,9 @@ trace("%d %d %d\n", a, b, c);
 			for(k = 0; k < geo->numTriangles; k++){
 				t = &geo->triangles[k];
 				if(seen[k] || t->matId != m) continue;
-				if((t->v[0] == a && t->v[1] == b && t->v[2] == c) ||
-				   (t->v[1] == a && t->v[2] == b && t->v[0] == c) ||
-				   (t->v[2] == a && t->v[0] == b && t->v[1] == c)){
+				if((t->vertIndex[0] == a && t->vertIndex[1] == b && t->vertIndex[2] == c) ||
+				   (t->vertIndex[1] == a && t->vertIndex[2] == b && t->vertIndex[0] == c) ||
+				   (t->vertIndex[2] == a && t->vertIndex[0] == b && t->vertIndex[1] == c)){
 					seen[k] = 1;
 					goto found;
 				}

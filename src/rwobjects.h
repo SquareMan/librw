@@ -48,7 +48,7 @@ struct Frame
 	Object object;
 	LLLink inDirtyList;
 	LinkList objectList;
-	Matrix matrix;
+	Matrix modelling;
 	Matrix ltm;
 
 	Frame *child;
@@ -463,7 +463,7 @@ struct MeshHeader
 	uint32 flags;
 	uint16 numMeshes;
 	uint16 serialNum;
-	uint32 totalIndices;
+	uint32 totalIndicesInMesh;
 	uint32 pad;	// needed for alignment of Meshes
 	// after this the meshes
 
@@ -478,7 +478,7 @@ struct MorphTarget
 {
 	Geometry *parent;
 	Sphere boundingSphere;
-	V3d *vertices;
+	V3d *verts;
 	V3d *normals;
 
 	Sphere calculateBoundingSphere(void) const;
@@ -491,7 +491,7 @@ struct InstanceDataHeader
 
 struct Triangle
 {
-	uint16 v[3];
+	uint16 vertIndex[3];
 	uint16 matId;
 };
 
@@ -523,13 +523,13 @@ struct Geometry
 	int32 numTexCoordSets;
 
 	Triangle *triangles;
-	RGBA *colors;
+	RGBA *preLitLum;
 	TexCoords *texCoords[8];
 
-	MorphTarget *morphTargets;
+	MorphTarget *morphTarget;
 	MaterialList matList;
 
-	MeshHeader *meshHeader;
+	MeshHeader *mesh;
 	InstanceDataHeader *instData;
 
 	int32 refCount;
@@ -608,7 +608,7 @@ struct World;
 struct Atomic
 {
 	PLUGINBASE
-	typedef void (*RenderCB)(Atomic *atomic);
+	typedef Atomic* (*RenderCB)(Atomic *atomic);
 	enum { ID = 1 };
 	enum {
 	// flags
@@ -625,9 +625,9 @@ struct Atomic
 	Sphere boundingSphere;
 	Sphere worldBoundingSphere;
 	Clump *clump;
-	LLLink inClump;
+	LLLink inClumpLink;
 	ObjPipeline *pipeline;
-	RenderCB renderCB;
+	RenderCB renderCallBack;
 
 	World *world;
 	ObjectWithFrame::Sync originalSync;
@@ -643,17 +643,17 @@ struct Atomic
 	}
 	Frame *getFrame(void) const { return (Frame*)this->object.object.parent; }
 	static Atomic *fromClump(LLLink *lnk){
-		return LLLinkGetData(lnk, Atomic, inClump); }
+		return LLLinkGetData(lnk, Atomic, inClumpLink); }
 	void setGeometry(Geometry *geo, uint32 flags);
 	Sphere *getWorldBoundingSphere(void);
 	ObjPipeline *getPipeline(void);
 	void instance(void);
 	void uninstance(void);
-	void render(void) { this->renderCB(this); }
+	void render(void) { this->renderCallBack(this); }
 	void setRenderCB(RenderCB renderCB){
-		this->renderCB = renderCB;
-		if(this->renderCB == nil)
-			this->renderCB = defaultRenderCB;
+		this->renderCallBack = renderCB;
+		if(this->renderCallBack == nil)
+			this->renderCallBack = defaultRenderCB;
 	};
 	void setFlags(uint32 flags) { this->object.object.flags = flags; }
 	uint32 getFlags(void) const { return this->object.object.flags; }
@@ -662,7 +662,7 @@ struct Atomic
 	bool streamWriteClump(Stream *stream, FrameList_ *frmlst);
 	uint32 streamGetSize(void);
 
-	static void defaultRenderCB(Atomic *atomic);
+	static Atomic* defaultRenderCB(Atomic *atomic);
 };
 
 void registerAtomicRightsPlugin(void);
@@ -805,7 +805,7 @@ struct Clump
 	PLUGINBASE
 	enum { ID = 2 };
 	Object object;
-	LinkList atomics;
+	LinkList atomicList;
 	LinkList lights;
 	LinkList cameras;
 
@@ -819,7 +819,7 @@ struct Clump
 	void destroy(void);
 	static Clump *fromWorld(LLLink *lnk){
 		return LLLinkGetData(lnk, Clump, inWorld); }
-	int32 countAtomics(void) { return this->atomics.count(); }
+	int32 countAtomics(void) { return this->atomicList.count(); }
 	void addAtomic(Atomic *a);
 	void removeAtomic(Atomic *a);
 	int32 countLights(void) { return this->lights.count(); }
@@ -855,7 +855,7 @@ struct World
 	PLUGINBASE
 	enum { ID = 7 };
 	Object object;
-	LinkList localLights;	// these have positions (type >= 0x80)
+	LinkList directionalLightList;	// these have positions (type >= 0x80)
 	LinkList globalLights;	// these do not (type < 0x80)
 	LinkList clumps;
 

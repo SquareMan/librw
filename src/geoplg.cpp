@@ -41,19 +41,19 @@ Geometry::allocateMeshes(int32 numMeshes, uint32 numIndices, bool32 noIndices)
 	sz = sizeof(MeshHeader) + numMeshes*sizeof(Mesh);
 	if(!noIndices)
 		sz += numIndices*sizeof(uint16);
-	if(this->meshHeader){
-		oldNumMeshes = this->meshHeader->numMeshes;
-		mh = (MeshHeader*)rwResize(this->meshHeader, sz, MEMDUR_EVENT | ID_GEOMETRY);
-		this->meshHeader = mh;
+	if(this->mesh){
+		oldNumMeshes = this->mesh->numMeshes;
+		mh = (MeshHeader*)rwResize(this->mesh, sz, MEMDUR_EVENT | ID_GEOMETRY);
+		this->mesh = mh;
 	}else{
 		oldNumMeshes = 0;
 		mh = (MeshHeader*)rwNew(sz, MEMDUR_EVENT | ID_GEOMETRY);
 		mh->flags = 0;
-		this->meshHeader = mh;
+		this->mesh = mh;
 	}
 	mh->numMeshes = numMeshes;
 	mh->serialNum = nextSerialNum++;
-	mh->totalIndices = numIndices;
+	mh->totalIndicesInMesh = numIndices;
 	m = mh->getMeshes();
 	indices = (uint16*)&m[numMeshes];
 	for(i = 0; i < mh->numMeshes; i++){
@@ -119,8 +119,8 @@ readMesh(Stream *stream, int32 len, void *object, int32, int32)
 	stream->read32(&mhs, sizeof(MeshHeaderStream));
 	// Have to do this dance for War Drum's meshes
 	bool32 hasData = len > int32(sizeof(MeshHeaderStream)+mhs.numMeshes*sizeof(MeshStream));
-	assert(geo->meshHeader == nil);
-	geo->meshHeader = nil;
+	assert(geo->mesh == nil);
+	geo->mesh = nil;
 	mh = geo->allocateMeshes(mhs.numMeshes, mhs.totalIndices, 
 		geo->flags & Geometry::NATIVE && !hasData);
 	mh->flags = mhs.flags;
@@ -164,12 +164,12 @@ writeMesh(Stream *stream, int32, void *object, int32, int32)
 	MeshStream ms;
 	int32 indbuf[256];
 	Geometry *geo = (Geometry*)object;
-	mhs.flags = geo->meshHeader->flags;
-	mhs.numMeshes = geo->meshHeader->numMeshes;
-	mhs.totalIndices = geo->meshHeader->totalIndices;
+	mhs.flags = geo->mesh->flags;
+	mhs.numMeshes = geo->mesh->numMeshes;
+	mhs.totalIndices = geo->mesh->totalIndicesInMesh;
 	stream->write32(&mhs, sizeof(MeshHeaderStream));
-	Mesh *mesh = geo->meshHeader->getMeshes();
-	for(uint32 i = 0; i < geo->meshHeader->numMeshes; i++){
+	Mesh *mesh = geo->mesh->getMeshes();
+	for(uint32 i = 0; i < geo->mesh->numMeshes; i++){
 		ms.numIndices = mesh->numIndices;
 		ms.matIndex = geo->matList.findIndex(mesh->material);
 		stream->write32(&ms, sizeof(MeshStream));
@@ -198,15 +198,15 @@ static int32
 getSizeMesh(void *object, int32, int32)
 {
 	Geometry *geo = (Geometry*)object;
-	if(geo->meshHeader == nil)
+	if(geo->mesh == nil)
 		return -1;
-	int32 size = 12 + geo->meshHeader->numMeshes*8;
+	int32 size = 12 + geo->mesh->numMeshes*8;
 	if(geo->flags & Geometry::NATIVE){
 		assert(geo->instData != nil);
 		if(geo->instData->platform == PLATFORM_WDGL)
-			size += geo->meshHeader->totalIndices*2;
+			size += geo->mesh->totalIndicesInMesh*2;
 	}else{
-		size += geo->meshHeader->totalIndices*4;
+		size += geo->mesh->totalIndicesInMesh*4;
 	}
 	return size;
 }
@@ -226,9 +226,9 @@ uint32
 MeshHeader::guessNumTriangles(void)
 {
 	if(this->flags == MeshHeader::TRISTRIP)
-		return this->totalIndices - 2*this->numMeshes;
+		return this->totalIndicesInMesh - 2*this->numMeshes;
 	else
-		return this->totalIndices/3;
+		return this->totalIndicesInMesh/3;
 }
 
 // Native Data

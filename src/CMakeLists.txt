@@ -111,7 +111,7 @@ target_compile_definitions(librw
         "RW_${LIBRW_PLATFORM}"
 )
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if(NOT WIN32 AND (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
     target_link_libraries(librw
         PRIVATE
             m

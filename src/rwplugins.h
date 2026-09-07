@@ -22,8 +22,8 @@ struct HAnimInterpFrame
 
 struct HAnimNodeInfo
 {
-	int32 id;
-	int32 index;
+	int32 nodeID;
+	int32 nodeIndex;
 	int32 flags;
 	Frame *frame;
 };
@@ -32,7 +32,7 @@ struct HAnimHierarchy
 {
 	int32 flags;
 	int32 numNodes;
-	Matrix *matrices;
+	Matrix *pMatrixArray;
 	void  *matricesUnaligned;
 	HAnimNodeInfo *nodeInfo;
 	Frame *parentFrame;
@@ -133,8 +133,10 @@ struct MatFX
 	int32 getEffectIndex(uint32 type);
 	// Bump
 	void setBumpTexture(Texture *t);
+	void setBumpFrame(Frame *f);
 	void setBumpCoefficient(float32 coef);
 	Texture *getBumpTexture(void);
+	Frame* getBumpFrame(void);
 	float32 getBumpCoefficient(void);
 	// Env
 	void setEnvTexture(Texture *t);

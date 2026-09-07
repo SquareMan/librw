@@ -12,10 +12,14 @@ enum RenderState
 	VERTEXALPHA,
 	SRCBLEND,
 	DESTBLEND,
+    VERTEXALPHAENABLE,
 	ZTESTENABLE,
+	SHADEMODE,
 	ZWRITEENABLE,
 	FOGENABLE,
 	FOGCOLOR,
+    FOGTYPE,
+    FOGDENSITY,
 	CULLMODE,
 	// TODO:
 	// fog type, density ?
@@ -94,6 +98,12 @@ enum BlendFunction
 	// TODO: add more perhaps
 };
 
+enum ShadeMode
+{
+    FLAT,
+    GOURAUD,
+};
+
 void SetRenderState(int32 state, uint32 value);
 void SetRenderStatePtr(int32 state, void *value);
 uint32 GetRenderState(int32 state);
@@ -137,4 +147,3 @@ void End(void);
 }
 
 }
-

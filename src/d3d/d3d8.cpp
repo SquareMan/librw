@@ -177,7 +177,7 @@ writeNativeData(Stream *stream, int32 len, void *object, int32, int32)
 	stream->writeU32(PLATFORM_D3D8);
 	InstanceDataHeader *header = (InstanceDataHeader*)geometry->instData;
 
-	int32 size = 4 + geometry->meshHeader->numMeshes*0x2C;
+	int32 size = 4 + geometry->mesh->numMeshes*0x2C;
 	uint8 *data = rwNewT(uint8, size, MEMDUR_FUNCTION | ID_GEOMETRY);
 	stream->writeI32(size);
 	uint8 *p = data;
@@ -258,7 +258,7 @@ instance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 	if(geo->instData)
 		return;
 	InstanceDataHeader *header = rwNewT(InstanceDataHeader, 1, MEMDUR_EVENT | ID_GEOMETRY);
-	MeshHeader *meshh = geo->meshHeader;
+	MeshHeader *meshh = geo->mesh;
 	geo->instData = header;
 	header->platform = PLATFORM_D3D8;
 
@@ -305,13 +305,13 @@ uninstance(rw::ObjPipeline *rwpipe, Atomic *atomic)
 		return;
 	assert(geo->instData != nil);
 	assert(geo->instData->platform == PLATFORM_D3D8);
-	geo->numTriangles = geo->meshHeader->guessNumTriangles();
+	geo->numTriangles = geo->mesh->guessNumTriangles();
 	geo->allocateData();
-	geo->allocateMeshes(geo->meshHeader->numMeshes, geo->meshHeader->totalIndices, 0);
+	geo->allocateMeshes(geo->mesh->numMeshes, geo->mesh->totalIndicesInMesh, 0);
 
 	InstanceDataHeader *header = (InstanceDataHeader*)geo->instData;
 	InstanceData *inst = header->inst;
-	Mesh *mesh = geo->meshHeader->getMeshes();
+	Mesh *mesh = geo->mesh->getMeshes();
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		uint16 *indices = lockIndices(inst->indexBuffer, 0, 0, 0);
 		if(inst->minVert == 0)
@@ -377,20 +377,20 @@ defaultInstanceCB(Geometry *geo, InstanceData *inst)
 
 	uint8 *dst = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 	instV3d(VERT_FLOAT3, dst,
-		&geo->morphTargets[0].vertices[inst->minVert],
+		&geo->morphTarget[0].verts[inst->minVert],
 		inst->numVertices, inst->stride);
 	dst += 12;
 
 	if(geo->flags & Geometry::NORMALS){
 		instV3d(VERT_FLOAT3, dst,
-		        &geo->morphTargets[0].normals[inst->minVert],
+		        &geo->morphTarget[0].normals[inst->minVert],
 		        inst->numVertices, inst->stride);
 		dst += 12;
 	}
 
 	inst->vertexAlpha = 0;
 	if(geo->flags & Geometry::PRELIT){
-		inst->vertexAlpha = instColor(VERT_ARGB, dst, &geo->colors[inst->minVert],
+		inst->vertexAlpha = instColor(VERT_ARGB, dst, &geo->preLitLum[inst->minVert],
 		                              inst->numVertices, inst->stride);
 		dst += 4;
 	}
@@ -408,20 +408,20 @@ defaultUninstanceCB(Geometry *geo, InstanceData *inst)
 {
 	uint8 *src = lockVertices(inst->vertexBuffer, 0, 0, D3DLOCK_NOSYSLOCK);
 	uninstV3d(VERT_FLOAT3,
-		&geo->morphTargets[0].vertices[inst->minVert],
+		&geo->morphTarget[0].verts[inst->minVert],
 		src, inst->numVertices, inst->stride);
 	src += 12;
 
 	if(geo->flags & Geometry::NORMALS){
 		uninstV3d(VERT_FLOAT3,
-		          &geo->morphTargets[0].normals[inst->minVert],
+		          &geo->morphTarget[0].normals[inst->minVert],
 		          src, inst->numVertices, inst->stride);
 		src += 12;
 	}
 
 	inst->vertexAlpha = 0;
 	if(geo->flags & Geometry::PRELIT){
-		uninstColor(VERT_ARGB, &geo->colors[inst->minVert], src,
+		uninstColor(VERT_ARGB, &geo->preLitLum[inst->minVert], src,
 		            inst->numVertices, inst->stride);
 		src += 4;
 	}

@@ -175,6 +175,14 @@ MatFX::setBumpTexture(Texture *t)
 }
 
 void
+MatFX::setBumpFrame(Frame* f)
+{
+	int32 i = this->getEffectIndex(BUMPMAP);
+	if(i >= 0)
+		this->fx[i].bump.frame = f;
+}
+
+void
 MatFX::setBumpCoefficient(float32 coef)
 {
 	int32 i = this->getEffectIndex(BUMPMAP);
@@ -188,6 +196,15 @@ MatFX::getBumpTexture(void)
 	int32 i = this->getEffectIndex(BUMPMAP);
 	if(i >= 0)
 		return this->fx[i].bump.tex;
+	return nil;
+}
+
+Frame*
+MatFX::getBumpFrame(void)
+{
+	int32 i = this->getEffectIndex(BUMPMAP);
+	if(i >= 0)
+		return this->fx[i].bump.frame;
 	return nil;
 }
 
