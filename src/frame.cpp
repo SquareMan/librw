@@ -76,7 +76,10 @@ Frame::destroyHierarchy(void)
 		next = child->next;
 		child->destroyHierarchy();
 	}
-	assert(this->objectList.isEmpty());
+	while(!this->objectList.isEmpty())
+	{
+		rw::ObjectWithFrame::fromFrame(this->objectList.link.next)->setFrame(nil);
+	}
 	s_plglist.destruct(this);
 	if(this->object.privateFlags & Frame::HIERARCHYSYNC)
 		this->inDirtyList.remove();
