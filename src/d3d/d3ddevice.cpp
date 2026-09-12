@@ -73,7 +73,6 @@ struct RwStateCache {
 	bool32 vertexAlpha;
 	bool32 textureAlpha;
 	uint32 srcblend, destblend;
-	bool32 vertexAlphaEnable;
 	uint32 zwrite;
 	uint32 ztest;
 	uint32 shadeMode;
@@ -653,13 +652,6 @@ setRwRenderState(int32 state, void *pvalue)
 			setRenderState(D3DRS_DESTBLEND, blendMap[value]);
 		}
 		break;
-	case VERTEXALPHAENABLE:
-		if(rwStateCache.vertexAlphaEnable != value) {
-			rwStateCache.vertexAlphaEnable = value;
-			// TODO: figure this one out
-			// setRenderState(????, value);
-		}
-		break;
 	case ZTESTENABLE:
 		setDepthTest(bval);
 		break;
@@ -817,9 +809,6 @@ getRwRenderState(int32 state)
 		break;
 	case DESTBLEND:
 		val = rwStateCache.destblend;
-		break;
-	case VERTEXALPHAENABLE:
-		val = rwStateCache.vertexAlphaEnable;
 		break;
 	case ZTESTENABLE:
 		val = rwStateCache.ztest;
