@@ -100,7 +100,7 @@ Clump::addAtomic(Atomic *a)
 {
 	assert(a->clump == nil);
 	a->clump = this;
-	this->atomicList.append(&a->inClumpLink);
+	this->atomicList.add(&a->inClumpLink);
 }
 
 void
