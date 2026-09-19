@@ -662,6 +662,7 @@ setRwRenderState(int32 state, void *pvalue)
 			// TODO: figure this one out
 			// setRenderState(????, value);
 		}
+		break;
 	case ZWRITEENABLE:
 		setDepthWrite(bval);
 		break;
@@ -692,6 +693,7 @@ setRwRenderState(int32 state, void *pvalue)
 			// TODO: figure this one out
 			// setRenderState(????, value);
 		}
+		break;
 	}
 	case FOGDENSITY: {
 		if(rwStateCache.fogDensity != value)
@@ -700,6 +702,7 @@ setRwRenderState(int32 state, void *pvalue)
 			// TODO: figure this one out
 			// setRenderState(????, value);
 		}
+		break;
 	}
 	case CULLMODE:
 		if(rwStateCache.cullmode != value){
