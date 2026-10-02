@@ -165,7 +165,10 @@ defaultRenderCB_Shader(Atomic *atomic, InstanceDataHeader *header)
 	for(uint32 i = 0; i < header->numMeshes; i++){
 		Material *m = inst->material;
 
-		SetRenderState(VERTEXALPHA, inst->vertexAlpha || m->color.alpha != 255);
+		if(inst->vertexAlpha || m->color.alpha != 255)
+		{
+			SetRenderState(VERTEXALPHA, true);
+		}
 
 		setMaterial(flags, m->color, m->surfaceProps);
 
